@@ -114,6 +114,8 @@ const en = {
     translationToEnglish: "English translation",
     errorMissingKey:
       "Dr. Healthier needs a Groq API key. Add GROQ_API_KEY to .env.local and restart the app.",
+    errorUnavailable:
+      "Dr. Healthier's chat service is not connected yet. Please try again later.",
     errorGeneric: "Something interrupted that answer. Please try again.",
     privacy: "Your conversation stays in this browser session.",
     disclaimer:
@@ -316,6 +318,8 @@ const ar: typeof en = {
     translationToEnglish: "الترجمة بالإنجليزي",
     errorMissingKey:
       "دكتور healthier محتاج مفتاح Groq. ضيف GROQ_API_KEY في ملف .env.local وشغّل التطبيق تاني.",
+    errorUnavailable:
+      "خدمة محادثة دكتور healthier مش متصلة لسه. جرّب تاني بعد شوية.",
     errorGeneric: "حصل حاجة قطعت الإجابة. جرّب تاني.",
     privacy: "المحادثة دي محفوظة في المتصفح بس.",
     disclaimer:

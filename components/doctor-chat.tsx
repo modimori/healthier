@@ -46,6 +46,12 @@ type ApiResponse = {
   error?: string;
 };
 
+const CHAT_API_URL =
+  process.env.NEXT_PUBLIC_CHAT_API_URL?.trim() ||
+  (process.env.NODE_ENV === "development"
+    ? "http://127.0.0.1:8787/api/chat"
+    : "");
+
 function makeId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -105,6 +111,11 @@ export function DoctorChat({
       const text = rawText.trim();
       if (!text || isLoading) return;
 
+      if (!CHAT_API_URL) {
+        setError(t.doctor.errorUnavailable);
+        return;
+      }
+
       const userMessage: ChatMessage = {
         id: makeId(),
         role: "user",
@@ -128,7 +139,7 @@ export function DoctorChat({
       }, 2800);
 
       try {
-        const response = await fetch("/api/chat", {
+        const response = await fetch(CHAT_API_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -145,8 +156,11 @@ export function DoctorChat({
         const data = (await response.json().catch(() => ({}))) as ApiResponse;
 
         if (!response.ok || !data.answer) {
-          if (data.error === "missing_key") {
-            setError(t.doctor.errorMissingKey);
+          if (
+            data.error === "missing_key" ||
+            data.error === "forbidden_origin"
+          ) {
+            setError(t.doctor.errorUnavailable);
           } else {
             setError(t.doctor.errorGeneric);
           }

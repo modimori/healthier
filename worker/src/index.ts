@@ -1,11 +1,14 @@
-import { NextResponse } from "next/server";
 import {
   calculateHealth,
   isValidProfile,
   type Profile,
-} from "@/lib/health";
+} from "../../lib/health";
 
-export const runtime = "nodejs";
+type Env = {
+  GROQ_API_KEY?: string;
+  GROQ_MODEL?: string;
+  ALLOWED_ORIGINS?: string;
+};
 
 type IncomingMessage = {
   role: "user" | "assistant";
@@ -24,10 +27,8 @@ type GroqMessage = {
 };
 
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
-
-function getLanguageName(locale: "en" | "ar"): string {
-  return locale === "ar" ? "Egyptian Arabic" : "English";
-}
+const DEFAULT_ALLOWED_ORIGINS =
+  "https://modimori.github.io,http://localhost:3000,http://127.0.0.1:3000";
 
 function doctorSystemPrompt(
   locale: "en" | "ar",
@@ -85,9 +86,7 @@ STYLE
 - Do not include a translation section.`;
 }
 
-function translationSystemPrompt(
-  targetLocale: "en" | "ar",
-): string {
+function translationSystemPrompt(targetLocale: "en" | "ar"): string {
   const target =
     targetLocale === "ar"
       ? "natural Egyptian colloquial Arabic (Masri), the kind a friendly Cairo doctor would speak. Avoid stiff Modern Standard Arabic while keeping medical meaning precise."
@@ -106,11 +105,12 @@ RULES
 }
 
 async function callGroq(
+  env: Env,
   apiKey: string,
   messages: GroqMessage[],
   options: { temperature: number; maxTokens: number },
 ): Promise<string> {
-  const model = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+  const model = env.GROQ_MODEL || "openai/gpt-oss-120b";
 
   const response = await fetch(GROQ_URL, {
     method: "POST",
@@ -125,6 +125,7 @@ async function callGroq(
       max_tokens: options.maxTokens,
       top_p: 0.9,
     }),
+    signal: AbortSignal.timeout(45_000),
   });
 
   if (!response.ok) {
@@ -146,6 +147,7 @@ async function callGroq(
 }
 
 async function translateAnswer(
+  env: Env,
   apiKey: string,
   answer: string,
   targetLocale: "en" | "ar",
@@ -156,12 +158,12 @@ async function translateAnswer(
   ];
 
   try {
-    return await callGroq(apiKey, messages, {
+    return await callGroq(env, apiKey, messages, {
       temperature: 0.15,
       maxTokens: 1400,
     });
   } catch {
-    return callGroq(apiKey, messages, {
+    return callGroq(env, apiKey, messages, {
       temperature: 0.1,
       maxTokens: 1400,
     });
@@ -183,11 +185,65 @@ function sanitizeMessages(messages: IncomingMessage[]): IncomingMessage[] {
     }));
 }
 
-export async function POST(request: Request) {
-  const apiKey = process.env.GROQ_API_KEY;
+function getAllowedOrigins(env: Env): string[] {
+  return (env.ALLOWED_ORIGINS || DEFAULT_ALLOWED_ORIGINS)
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+}
+
+function getCorsHeaders(request: Request, env: Env): Record<string, string> | null {
+  const origin = request.headers.get("Origin");
+  const allowedOrigins = getAllowedOrigins(env);
+
+  if (origin && !allowedOrigins.includes(origin)) {
+    return null;
+  }
+
+  return {
+    "Access-Control-Allow-Origin": origin || allowedOrigins[0] || "*",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Max-Age": "86400",
+    Vary: "Origin",
+  };
+}
+
+function json(
+  body: unknown,
+  status: number,
+  corsHeaders: Record<string, string> = {},
+): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store",
+      "X-Content-Type-Options": "nosniff",
+      ...corsHeaders,
+    },
+  });
+}
+
+async function handleChat(
+  request: Request,
+  env: Env,
+  corsHeaders: Record<string, string>,
+  hasAllowedOrigin: boolean,
+): Promise<Response> {
+  if (!hasAllowedOrigin) {
+    return json({ error: "forbidden_origin" }, 403);
+  }
+
+  const apiKey = env.GROQ_API_KEY;
 
   if (!apiKey) {
-    return NextResponse.json({ error: "missing_key" }, { status: 503 });
+    return json({ error: "missing_key" }, 503, corsHeaders);
+  }
+
+  const contentLength = Number(request.headers.get("Content-Length") || 0);
+  if (contentLength > 100_000) {
+    return json({ error: "payload_too_large" }, 413, corsHeaders);
   }
 
   let body: ChatRequest;
@@ -195,7 +251,7 @@ export async function POST(request: Request) {
   try {
     body = (await request.json()) as ChatRequest;
   } catch {
-    return NextResponse.json({ error: "bad_request" }, { status: 400 });
+    return json({ error: "bad_request" }, 400, corsHeaders);
   }
 
   const locale = body.locale === "ar" ? "ar" : "en";
@@ -205,7 +261,7 @@ export async function POST(request: Request) {
   );
 
   if (!messages.some((message) => message.role === "user")) {
-    return NextResponse.json({ error: "no_user_message" }, { status: 400 });
+    return json({ error: "no_user_message" }, 400, corsHeaders);
   }
 
   const profile =
@@ -217,20 +273,62 @@ export async function POST(request: Request) {
   ];
 
   try {
-    const answer = await callGroq(apiKey, conversation, {
+    const answer = await callGroq(env, apiKey, conversation, {
       temperature: 0.45,
       maxTokens: 1000,
     });
 
-    const translation = await translateAnswer(apiKey, answer, targetLocale);
-
-    return NextResponse.json({
+    const translation = await translateAnswer(
+      env,
+      apiKey,
       answer,
-      translation,
       targetLocale,
-    });
+    );
+
+    return json(
+      {
+        answer,
+        translation,
+        targetLocale,
+      },
+      200,
+      corsHeaders,
+    );
   } catch (error) {
     console.error("Doctor chat error:", error);
-    return NextResponse.json({ error: "upstream_error" }, { status: 502 });
+    return json({ error: "upstream_error" }, 502, corsHeaders);
   }
 }
+
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const corsHeaders = getCorsHeaders(request, env) || {};
+
+    if (request.method === "OPTIONS") {
+      if (!getCorsHeaders(request, env)) {
+        return json({ error: "forbidden_origin" }, 403);
+      }
+      return new Response(null, { status: 204, headers: corsHeaders });
+    }
+
+    const url = new URL(request.url);
+    const path = url.pathname.replace(/\/+$/, "") || "/";
+
+    if (path === "/") {
+      return json(
+        { service: "healthier-chat", status: "ok" },
+        200,
+        corsHeaders,
+      );
+    }
+
+    if (path === "/api/chat") {
+      if (request.method !== "POST") {
+        return json({ error: "method_not_allowed" }, 405, corsHeaders);
+      }
+      return handleChat(request, env, corsHeaders, Boolean(getCorsHeaders(request, env)));
+    }
+
+    return json({ error: "not_found" }, 404, corsHeaders);
+  },
+};
