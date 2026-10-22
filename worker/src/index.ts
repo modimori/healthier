@@ -110,7 +110,7 @@ async function callGroq(
   messages: GroqMessage[],
   options: { temperature: number; maxTokens: number },
 ): Promise<string> {
-  const model = env.GROQ_MODEL || "openai/gpt-oss-120b";
+  const model = env.GROQ_MODEL || "qwen/qwen3.8-27b";
 
   const response = await fetch(GROQ_URL, {
     method: "POST",
