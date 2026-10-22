@@ -91,11 +91,11 @@ const en = {
     asideNumbers: "A quick look at your numbers",
     asideSafetyTitle: "When to get help",
     asideSafetyBody: "For chest pain, trouble breathing, fainting, or sudden severe symptoms, contact emergency services now.",
-    translationNote: "Every reply is shown in both languages.",
+    languageNote: "Dr. Healthier replies in the language you select.",
     poweredBy: "Powered by Groq",
     title: "Dr. Healthier",
     subtitle:
-      "Ask in English or Egyptian Arabic. Every answer is translated into the other language before it reaches you.",
+      "Ask in English or Egyptian Arabic. Dr. Healthier replies in the language you choose.",
     newChat: "New conversation",
     online: "Ready when you are",
     welcomeTitle: "What's on your mind?",
@@ -109,9 +109,7 @@ const en = {
     placeholder: "Describe what you're feeling or ask a health question...",
     send: "Send",
     thinking: "Thinking through it...",
-    translating: "Translating the answer...",
-    translationToArabic: "Egyptian Arabic translation",
-    translationToEnglish: "English translation",
+
     errorMissingKey:
       "Dr. Healthier needs a Groq API key. Add GROQ_API_KEY to .env.local and restart the app.",
     errorUnavailable:
@@ -295,11 +293,10 @@ const ar: typeof en = {
     asideSafetyTitle: "إمتى تطلب مساعدة",
     asideSafetyBody:
       "لو عندك ألم في الصدر، صعوبة في التنفس، إغماء، أو أعراض مفاجئة وشديدة، اتصل بالطوارئ فورًا.",
-    translationNote: "كل رد بيظهر باللغتين.",
+    languageNote: "دكتور healthier بيرد باللغة اللي بتختارها.",
     poweredBy: "مدعوم بـ Groq",
     title: "دكتور healthier",
-    subtitle:
-      "اسأل بالإنجليزي أو بالعربي المصري. كل إجابة بتتترجم للغة التانية قبل ما توصلك.",
+    subtitle: "اسأل بالإنجليزي أو بالعربي المصري، وهيرد عليك بنفس اللغة اللي تختارها.",
     newChat: "محادثة جديدة",
     online: "جاهز لما تحب",
     welcomeTitle: "في إيه في دماغك؟",
@@ -313,9 +310,6 @@ const ar: typeof en = {
     placeholder: "احكي إيه اللي حاسس بيه أو اسأل سؤال صحي...",
     send: "ابعت",
     thinking: "بفكر في الإجابة...",
-    translating: "بترجم الإجابة...",
-    translationToArabic: "الترجمة بالعربي المصري",
-    translationToEnglish: "الترجمة بالإنجليزي",
     errorMissingKey:
       "دكتور healthier محتاج مفتاح Groq. ضيف GROQ_API_KEY في ملف .env.local وشغّل التطبيق تاني.",
     errorUnavailable:

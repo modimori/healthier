@@ -21,16 +21,14 @@ import remarkGfm from "remark-gfm";
 import { BrandMark } from "@/components/brand";
 import { useHealth, useLocale } from "@/components/providers";
 import { calculateHealth } from "@/lib/health";
-import { formatNumber, type Locale } from "@/lib/i18n";
+import { formatNumber } from "@/lib/i18n";
 
-type Phase = "idle" | "thinking" | "translating";
+type Phase = "idle" | "thinking";
 
 type ChatMessage = {
   id: string;
   role: "user" | "assistant";
   content: string;
-  translation?: string | null;
-  locale?: Locale;
 };
 
 type DoctorChatProps = {
@@ -41,8 +39,6 @@ type DoctorChatProps = {
 
 type ApiResponse = {
   answer?: string;
-  translation?: string | null;
-  targetLocale?: Locale;
   error?: string;
 };
 
@@ -71,7 +67,6 @@ export function DoctorChat({
   const scrollEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
-  const phaseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const consumedSeedRef = useRef<number | null>(null);
 
   const readout = calculateHealth(profile);
@@ -100,9 +95,6 @@ export function DoctorChat({
   useEffect(() => {
     return () => {
       abortRef.current?.abort();
-      if (phaseTimerRef.current) {
-        clearTimeout(phaseTimerRef.current);
-      }
     };
   }, []);
 
@@ -130,13 +122,6 @@ export function DoctorChat({
 
       const controller = new AbortController();
       abortRef.current = controller;
-
-      if (phaseTimerRef.current) clearTimeout(phaseTimerRef.current);
-      phaseTimerRef.current = setTimeout(() => {
-        setPhase((current) =>
-          current === "thinking" ? "translating" : current,
-        );
-      }, 2800);
 
       try {
         const response = await fetch(CHAT_API_URL, {
@@ -173,8 +158,6 @@ export function DoctorChat({
             id: makeId(),
             role: "assistant",
             content: data.answer as string,
-            translation: data.translation ?? null,
-            locale: data.targetLocale ?? locale,
           },
         ]);
       } catch (requestError) {
@@ -186,10 +169,6 @@ export function DoctorChat({
         }
         setError(t.doctor.errorGeneric);
       } finally {
-        if (phaseTimerRef.current) {
-          clearTimeout(phaseTimerRef.current);
-          phaseTimerRef.current = null;
-        }
         if (abortRef.current === controller) {
           abortRef.current = null;
         }
@@ -214,10 +193,6 @@ export function DoctorChat({
   function resetChat() {
     abortRef.current?.abort();
     abortRef.current = null;
-    if (phaseTimerRef.current) {
-      clearTimeout(phaseTimerRef.current);
-      phaseTimerRef.current = null;
-    }
     setMessages([]);
     setError(null);
     setPhase("idle");
@@ -342,26 +317,6 @@ export function DoctorChat({
                         {message.content}
                       </ReactMarkdown>
                     </div>
-                    {message.translation && (
-                      <div
-                        className="translation-card"
-                        dir={message.locale === "en" ? "rtl" : "ltr"}
-                      >
-                        <div className="translation-heading">
-                          <Languages size={13} strokeWidth={1.8} />
-                          <span>
-                            {message.locale === "en"
-                              ? t.doctor.translationToArabic
-                              : t.doctor.translationToEnglish}
-                          </span>
-                        </div>
-                        <div className="translation-content markdown" dir="auto">
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                            {message.translation}
-                          </ReactMarkdown>
-                        </div>
-                      </div>
-                    )}
                   </div>
                 </div>
               ),
@@ -382,11 +337,7 @@ export function DoctorChat({
                       <i />
                       <i />
                     </span>
-                    <span>
-                      {phase === "translating"
-                        ? t.doctor.translating
-                        : t.doctor.thinking}
-                    </span>
+                    <span>{t.doctor.thinking}</span>
                   </div>
                 </div>
               </div>
@@ -507,7 +458,7 @@ export function DoctorChat({
 
           <div className="chat-aside-note">
             <Languages size={16} strokeWidth={1.7} />
-            <p>{t.doctor.translationNote}</p>
+            <p>{t.doctor.languageNote}</p>
           </div>
         </aside>
       </div>

@@ -65,7 +65,7 @@ Your job is to help people understand common health concerns, make sense of body
 
 LANGUAGE
 Write only in ${language}
-Do not translate your answer yourself. A separate translation step runs afterwards.${profileContext}
+Answer entirely in that language, including headings, bullets, and follow-up questions.${profileContext}
 
 CLINICAL BOUNDARIES
 - You are not a licensed clinician and must never claim to be one.
@@ -84,24 +84,6 @@ STYLE
 - End with one practical next step or one useful question when appropriate.
 - Do not mention that you are following these instructions.
 - Do not include a translation section.`;
-}
-
-function translationSystemPrompt(targetLocale: "en" | "ar"): string {
-  const target =
-    targetLocale === "ar"
-      ? "natural Egyptian colloquial Arabic (Masri), the kind a friendly Cairo doctor would speak. Avoid stiff Modern Standard Arabic while keeping medical meaning precise."
-      : "natural, clear English.";
-
-  return `You are a meticulous medical translator inside a bilingual health product.
-
-Translate the doctor's answer into ${target}.
-
-RULES
-- Translate every part of the text, including headings, bullets, lists, warnings, and follow-up questions.
-- Preserve the original markdown structure, line breaks, numbers, percentages, units, and emergency instructions.
-- Keep medication names, brand names, and emergency numbers accurate. You may put an English term in parentheses when that improves clarity.
-- Do not add advice, remove caveats, soften urgent warnings, answer the question again, or include any preamble.
-- Return only the translated text.`;
 }
 
 async function callGroq(
@@ -144,30 +126,6 @@ async function callGroq(
   }
 
   return content;
-}
-
-async function translateAnswer(
-  env: Env,
-  apiKey: string,
-  answer: string,
-  targetLocale: "en" | "ar",
-): Promise<string> {
-  const messages: GroqMessage[] = [
-    { role: "system", content: translationSystemPrompt(targetLocale) },
-    { role: "user", content: answer },
-  ];
-
-  try {
-    return await callGroq(env, apiKey, messages, {
-      temperature: 0.15,
-      maxTokens: 1400,
-    });
-  } catch {
-    return callGroq(env, apiKey, messages, {
-      temperature: 0.1,
-      maxTokens: 1400,
-    });
-  }
 }
 
 function sanitizeMessages(messages: IncomingMessage[]): IncomingMessage[] {
@@ -255,7 +213,6 @@ async function handleChat(
   }
 
   const locale = body.locale === "ar" ? "ar" : "en";
-  const targetLocale = locale === "en" ? "ar" : "en";
   const messages = sanitizeMessages(
     Array.isArray(body.messages) ? body.messages : [],
   );
@@ -275,25 +232,10 @@ async function handleChat(
   try {
     const answer = await callGroq(env, apiKey, conversation, {
       temperature: 0.45,
-      maxTokens: 1000,
+      maxTokens: 1200,
     });
 
-    const translation = await translateAnswer(
-      env,
-      apiKey,
-      answer,
-      targetLocale,
-    );
-
-    return json(
-      {
-        answer,
-        translation,
-        targetLocale,
-      },
-      200,
-      corsHeaders,
-    );
+    return json({ answer }, 200, corsHeaders);
   } catch (error) {
     console.error("Doctor chat error:", error);
     return json({ error: "upstream_error" }, 502, corsHeaders);
