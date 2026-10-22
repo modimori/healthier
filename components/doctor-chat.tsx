@@ -21,7 +21,7 @@ import remarkGfm from "remark-gfm";
 import { BrandMark } from "@/components/brand";
 import { useHealth, useLocale } from "@/components/providers";
 import { calculateHealth } from "@/lib/health";
-import { formatNumber } from "@/lib/i18n";
+import { formatNumber, type Locale } from "@/lib/i18n";
 
 type Phase = "idle" | "thinking";
 
@@ -29,6 +29,7 @@ type ChatMessage = {
   id: string;
   role: "user" | "assistant";
   content: string;
+  language?: Locale;
 };
 
 type DoctorChatProps = {
@@ -42,11 +43,21 @@ type ApiResponse = {
   error?: string;
 };
 
+type TranslateResponse = {
+  translation?: string;
+  targetLocale?: Locale;
+  error?: string;
+};
+
 const CHAT_API_URL =
   process.env.NEXT_PUBLIC_CHAT_API_URL?.trim() ||
   (process.env.NODE_ENV === "development"
     ? "http://127.0.0.1:8787/api/chat"
     : "");
+
+const TRANSLATE_API_URL = CHAT_API_URL
+  ? CHAT_API_URL.replace(/\/api\/chat\/?$/, "/api/translate")
+  : "";
 
 function makeId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -63,14 +74,16 @@ export function DoctorChat({
   const [input, setInput] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [isTranslating, setIsTranslating] = useState(false);
 
   const scrollEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const consumedSeedRef = useRef<number | null>(null);
+  const lastLocaleRef = useRef<Locale>(locale);
 
   const readout = calculateHealth(profile);
-  const isLoading = phase !== "idle";
+  const isLoading = phase !== "idle" || isTranslating;
 
   const scrollToEnd = useCallback(() => {
     window.requestAnimationFrame(() => {
@@ -158,6 +171,7 @@ export function DoctorChat({
             id: makeId(),
             role: "assistant",
             content: data.answer as string,
+            language: locale,
           },
         ]);
       } catch (requestError) {
@@ -177,6 +191,68 @@ export function DoctorChat({
     },
     [hasProfile, isLoading, locale, messages, profile, t],
   );
+
+  useEffect(() => {
+    if (lastLocaleRef.current === locale) return;
+    lastLocaleRef.current = locale;
+
+    if (!TRANSLATE_API_URL) return;
+
+    let cancelled = false;
+
+    const stale = messages.filter(
+      (message) =>
+        message.role === "assistant" && message.language !== locale,
+    );
+
+    if (stale.length === 0) return;
+
+    setIsTranslating(true);
+
+    void (async () => {
+      try {
+        for (const message of stale) {
+          if (cancelled) return;
+
+          const response = await fetch(TRANSLATE_API_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              text: message.content,
+              targetLocale: locale,
+            }),
+          });
+
+          const data = (await response
+            .json()
+            .catch(() => ({}))) as TranslateResponse;
+
+          if (cancelled) return;
+
+          if (response.ok && data.translation) {
+            const translated = data.translation;
+            setMessages((current) =>
+              current.map((item) =>
+                item.id === message.id
+                  ? { ...item, content: translated, language: locale }
+                  : item,
+              ),
+            );
+          }
+        }
+      } catch {
+        // Keep the previous language if a translation fails.
+      } finally {
+        if (!cancelled) {
+          setIsTranslating(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [locale, messages]);
 
   useEffect(() => {
     if (!promptSeed || promptSeed.id === consumedSeedRef.current) return;
@@ -337,7 +413,9 @@ export function DoctorChat({
                       <i />
                       <i />
                     </span>
-                    <span>{t.doctor.thinking}</span>
+                    <span>
+                      {isTranslating ? t.doctor.translating : t.doctor.thinking}
+                    </span>
                   </div>
                 </div>
               </div>

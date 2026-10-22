@@ -109,6 +109,7 @@ const en = {
     placeholder: "Describe what you're feeling or ask a health question...",
     send: "Send",
     thinking: "Thinking through it...",
+    translating: "Translating the conversation...",
 
     errorMissingKey:
       "Dr. Healthier needs a Groq API key. Add GROQ_API_KEY to .env.local and restart the app.",
@@ -310,6 +311,7 @@ const ar: typeof en = {
     placeholder: "احكي إيه اللي حاسس بيه أو اسأل سؤال صحي...",
     send: "ابعت",
     thinking: "بفكر في الإجابة...",
+    translating: "بترجم المحادثة...",
     errorMissingKey:
       "دكتور healthier محتاج مفتاح Groq. ضيف GROQ_API_KEY في ملف .env.local وشغّل التطبيق تاني.",
     errorUnavailable:

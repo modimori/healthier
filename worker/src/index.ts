@@ -21,6 +21,11 @@ type ChatRequest = {
   profile?: Profile;
 };
 
+type TranslateRequest = {
+  text?: string;
+  targetLocale?: "en" | "ar";
+};
+
 type GroqMessage = {
   role: "system" | "user" | "assistant";
   content: string;
@@ -84,6 +89,24 @@ STYLE
 - End with one practical next step or one useful question when appropriate.
 - Do not mention that you are following these instructions.
 - Do not include a translation section.`;
+}
+
+function translationSystemPrompt(targetLocale: "en" | "ar"): string {
+  const target =
+    targetLocale === "ar"
+      ? "natural Egyptian colloquial Arabic (Masri), the kind a friendly Cairo doctor would speak. Avoid stiff Modern Standard Arabic while keeping medical meaning precise."
+      : "natural, clear English.";
+
+  return `You are a meticulous medical translator inside a bilingual health product.
+
+Translate the provided doctor's answer into ${target}.
+
+RULES
+- Translate every part of the text, including headings, bullets, lists, warnings, and follow-up questions.
+- Preserve the original markdown structure, line breaks, numbers, percentages, units, and emergency instructions.
+- Keep medication names, brand names, and emergency numbers accurate. You may put an English term in parentheses when that improves clarity.
+- Do not add advice, remove caveats, soften urgent warnings, answer the question again, or include any preamble.
+- Return only the translated text.`;
 }
 
 async function callGroq(
@@ -242,6 +265,62 @@ async function handleChat(
   }
 }
 
+async function handleTranslate(
+  request: Request,
+  env: Env,
+  corsHeaders: Record<string, string>,
+  hasAllowedOrigin: boolean,
+): Promise<Response> {
+  if (!hasAllowedOrigin) {
+    return json({ error: "forbidden_origin" }, 403);
+  }
+
+  const apiKey = env.GROQ_API_KEY;
+
+  if (!apiKey) {
+    return json({ error: "missing_key" }, 503, corsHeaders);
+  }
+
+  let body: TranslateRequest;
+
+  try {
+    body = (await request.json()) as TranslateRequest;
+  } catch {
+    return json({ error: "bad_request" }, 400, corsHeaders);
+  }
+
+  const text = typeof body.text === "string" ? body.text.trim() : "";
+
+  if (!text) {
+    return json({ error: "no_text" }, 400, corsHeaders);
+  }
+
+  const targetLocale = body.targetLocale === "ar" ? "ar" : "en";
+  const messages: GroqMessage[] = [
+    { role: "system", content: translationSystemPrompt(targetLocale) },
+    { role: "user", content: text.slice(0, 8000) },
+  ];
+
+  try {
+    let translation = await callGroq(env, apiKey, messages, {
+      temperature: 0.15,
+      maxTokens: 1600,
+    }).catch(() =>
+      callGroq(env, apiKey, messages, {
+        temperature: 0.1,
+        maxTokens: 1600,
+      }),
+    );
+
+    translation = translation.trim();
+
+    return json({ translation, targetLocale }, 200, corsHeaders);
+  } catch (error) {
+    console.error("Translate error:", error);
+    return json({ error: "upstream_error" }, 502, corsHeaders);
+  }
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const corsHeaders = getCorsHeaders(request, env) || {};
@@ -269,6 +348,18 @@ export default {
         return json({ error: "method_not_allowed" }, 405, corsHeaders);
       }
       return handleChat(request, env, corsHeaders, Boolean(getCorsHeaders(request, env)));
+    }
+
+    if (path === "/api/translate") {
+      if (request.method !== "POST") {
+        return json({ error: "method_not_allowed" }, 405, corsHeaders);
+      }
+      return handleTranslate(
+        request,
+        env,
+        corsHeaders,
+        Boolean(getCorsHeaders(request, env)),
+      );
     }
 
     return json({ error: "not_found" }, 404, corsHeaders);
