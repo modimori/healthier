@@ -433,10 +433,11 @@ const nearby = {
     phone: "Phone",
     website: "Website",
     searchFacebook: "Search on Facebook",
-    openMap: "Open in OpenStreetMap",
+    openMap: "Open in Google Maps",
+    searchGoogleMaps: "Search doctors on Google Maps",
     howItWorksTitle: "How this works",
     howItWorksBody:
-      "Results come from OpenStreetMap (overpass-api.de), a free open-source map. We prioritize results in the same city/town as you and never sell your location.",
+      "Results come from OpenStreetMap (overpass-api.de), a free open-source map. We prioritize results in the same city/town as you. Tapping opens the place in Google Maps for directions and reviews. We never sell your location.",
     errorGeneric: "Something went wrong while searching.",
     emptyTitle: "Find care in your city or town",
     emptyBody:
@@ -467,10 +468,11 @@ const nearby = {
     phone: "التليفون",
     website: "الموقع الإلكتروني",
     searchFacebook: "ابحث على فيسبوك",
-    openMap: "افتح في OpenStreetMap",
+    openMap: "افتح في خرائط جوجل",
+    searchGoogleMaps: "ابحث عن أطباء على خرائط جوجل",
     howItWorksTitle: "ازاي بيشتغل",
     howItWorksBody:
-      "النتايج جاية من OpenStreetMap (overpass-api.de) مجانًا ومفتوح المصدر. بنحاول نعرض اللي في نفس المدينة/القرية قدر الإمكان ومفيش بيع لموقعك أبدًا.",
+      "النتايج جاية من OpenStreetMap (overpass-api.de) مجانًا ومفتوح المصدر. بنحاول نعرض اللي في نفس المدينة/القرية قدر الإمكان. الضغط بيفتح المكان في خرائط جوجل عشان تقدر تاخد اتجاهات أو تشوف تقييمات. مفيش بيع لموقعك أبدًا.",
     errorGeneric: "حصل خطأ أثناء البحث.",
     emptyTitle: "اعثر على رعاية في مدينتك أو قريتك",
     emptyBody: "استخدم موقعك أو ابحث باسم المدينة/القرية عشان تلاقي أطباء وعيادات ومراكز طبية.",

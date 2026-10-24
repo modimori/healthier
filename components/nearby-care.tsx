@@ -241,7 +241,11 @@ export function NearbyCare() {
           first.display_name;
 
         setPosition(pos);
-        setAreaName(area || query);
+        setAreaName(
+          area
+            ? String(area).split(",")[0].trim()
+            : query.split(",")[0].trim(),
+        );
         setStatus("idle");
         setError(null);
       } catch (searchError) {
@@ -373,6 +377,13 @@ export function NearbyCare() {
     return `https://www.facebook.com/search/top/?q=${query}`;
   }, [places]);
 
+  const googleMapsSearchUrl = useMemo(() => {
+    const query = areaName
+      ? `${tn.searchGoogleMaps} ${areaName}`
+      : tn.searchGoogleMaps;
+    return `https://maps.google.com/?q=${encodeURIComponent(query)}`;
+  }, [areaName, tn.searchGoogleMaps]);
+
   const isBusy =
     status === "locating" || status === "searching" || status === "searchingPlace";
 
@@ -409,7 +420,7 @@ export function NearbyCare() {
               {position && (
                 <span className="nearby-coords">
                   <MapPin size={14} strokeWidth={1.8} />
-                  {areaName ? areaName : `${position.lat.toFixed(4)}, ${position.lon.toFixed(4)}`}
+                  {areaName ? areaName.split(",")[0].trim() : `${position.lat.toFixed(4)}, ${position.lon.toFixed(4)}`}
                 </span>
               )}
             </div>
@@ -486,28 +497,40 @@ export function NearbyCare() {
             </div>
           )}
 
-          {places.length > 0 && (
-            <div className="nearby-results">
-              <div className="nearby-results-header">
-                <h2>
-                  {tn.results} <span>({places.length})</span>
-                </h2>
-                {facebookSearchUrl && (
-                  <a
-                    className="button button--outline-dark button--small"
-                    href={facebookSearchUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <span aria-hidden="true">f</span>
-                    {tn.searchFacebook}
-                  </a>
-                )}
-              </div>
-              <div className="nearby-list">
-                {places.map((place) => {
-                  const mapUrl = `https://www.openstreetmap.org/?mlat=${place.lat}&mlon=${place.lon}#map=16/${place.lat}/${place.lon}`;
-                  const facebookUrl = `https://www.facebook.com/search/top/?q=${encodeURIComponent(place.name)}`;
+              {places.length > 0 && (
+                <div className="nearby-results">
+                  <div className="nearby-results-header">
+                    <h2>
+                      {areaName ? `${tn.results} • ${areaName}` : tn.results}{" "}
+                      <span>({places.length})</span>
+                    </h2>
+                    <div className="nearby-results-actions">
+                      <a
+                        className="button button--outline-dark button--small"
+                        href={googleMapsSearchUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <ExternalLink size={14} strokeWidth={1.8} />
+                        {tn.searchGoogleMaps}
+                      </a>
+                      {facebookSearchUrl && (
+                        <a
+                          className="button button--outline-dark button--small"
+                          href={facebookSearchUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <span aria-hidden="true">f</span>
+                          {tn.searchFacebook}
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                  <div className="nearby-list">
+                    {places.map((place) => {
+                      const mapUrl = `https://maps.google.com/?q=${encodeURIComponent(place.name)}&ll=${place.lat},${place.lon}&z=16`;
+                      const facebookUrl = `https://www.facebook.com/search/top/?q=${encodeURIComponent(place.name)}`;
                   return (
                     <article className="nearby-card" key={place.id}>
                       <div className="nearby-card-top">
