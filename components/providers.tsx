@@ -14,7 +14,7 @@ import {
   isValidProfile,
   type Profile,
 } from "@/lib/health";
-import { getCopy, type Copy, type Locale } from "@/lib/i18n";
+import { getCopy, getNearbyCopy, type Copy, type Locale, type NearbyCopy } from "@/lib/i18n";
 
 const LOCALE_KEY = "healthier-locale";
 const PROFILE_KEY = "healthier-profile";
@@ -24,6 +24,7 @@ type LocaleContextValue = {
   dir: "ltr" | "rtl";
   setLocale: (locale: Locale) => void;
   t: Copy;
+  tn: NearbyCopy;
 };
 
 type HealthContextValue = {
@@ -116,6 +117,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
       dir,
       setLocale,
       t: getCopy(locale),
+      tn: getNearbyCopy(locale),
     }),
     [locale, dir, setLocale],
   );

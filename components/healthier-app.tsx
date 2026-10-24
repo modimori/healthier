@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import {
   Calculator as CalculatorIcon,
   LayoutGrid,
+  MapPin,
   Stethoscope,
   UserRound,
 } from "lucide-react";
@@ -11,12 +12,13 @@ import { Wordmark } from "@/components/brand";
 import { LanguageSwitch } from "@/components/language-switch";
 import { CalculatorView } from "@/components/calculator-view";
 import { DoctorChat } from "@/components/doctor-chat";
+import { NearbyCare } from "@/components/nearby-care";
 import { Overview } from "@/components/overview";
 import { useHealth, useLocale } from "@/components/providers";
 import { calculateHealth } from "@/lib/health";
 import { formatDate, formatNumber, type Copy } from "@/lib/i18n";
 
-export type View = "overview" | "doctor" | "calculator";
+export type View = "overview" | "doctor" | "calculator" | "nearby";
 
 type PromptSeed = {
   id: number;
@@ -27,6 +29,7 @@ const NAV_ITEMS = [
   { key: "overview" as const, icon: LayoutGrid },
   { key: "doctor" as const, icon: Stethoscope },
   { key: "calculator" as const, icon: CalculatorIcon },
+  { key: "nearby" as const, icon: MapPin },
 ];
 
 function getNavLabel(t: Copy, view: View): string {
@@ -190,6 +193,7 @@ export function HealthierApp() {
             />
           )}
           {view === "calculator" && <CalculatorView />}
+          {view === "nearby" && <NearbyCare />}
         </div>
       </main>
 

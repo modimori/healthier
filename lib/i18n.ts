@@ -5,6 +5,7 @@ const en = {
     overview: "Overview",
     doctor: "AI doctor",
     calculator: "Calculator",
+    nearby: "Nearby care",
   },
   shell: {
     workspace: "Your space",
@@ -207,6 +208,7 @@ const ar: typeof en = {
     overview: "نظرة عامة",
     doctor: "دكتور ذكي",
     calculator: "الحاسبة",
+    nearby: "رعاية قريبة",
   },
   shell: {
     workspace: "مساحتك",
@@ -403,11 +405,80 @@ const ar: typeof en = {
   },
 };
 
+const nearby = {
+  en: {
+    eyebrow: "Nearby care",
+    title: "Find doctors near you",
+    subtitle:
+      "Use your location to find clinics and doctors around you. Search directly on Facebook for pages and reviews.",
+    useLocation: "Use my location",
+    locating: "Locating...",
+    radius: "Search radius",
+    radiusKm: "km",
+    search: "Search nearby",
+    searching: "Searching...",
+    permissionDenied:
+      "Location permission denied. Enable location in your browser to find nearby doctors.",
+    geolocationUnsupported:
+      "This browser doesn't support location. Enter a place or use your device location settings.",
+    noResults:
+      "No clinics or doctors found in this radius. Try a larger radius or search on Facebook.",
+    results: "Results",
+    distance: "Distance",
+    address: "Address",
+    phone: "Phone",
+    website: "Website",
+    searchFacebook: "Search on Facebook",
+    openMap: "Open in OpenStreetMap",
+    howItWorksTitle: "How this works",
+    howItWorksBody:
+      "Results come from OpenStreetMap (overpass-api.de), a free open-source map. We never sell your location.",
+    errorGeneric: "Something went wrong while searching.",
+    emptyTitle: "Find care nearby",
+    emptyBody:
+      "Tap Use my location to search for doctors, clinics, and medical centers around you.",
+  },
+  ar: {
+    eyebrow: "رعاية قريبة",
+    title: "اعثر على أطباء قريبين منك",
+    subtitle:
+      "استخدم موقعك للبحث عن عيادات وأطباء حولك. يمكنك البحث مباشرة على فيسبوك للصفحات والتقييمات.",
+    useLocation: "استخدم موقعي",
+    locating: "جاري تحديد الموقع...",
+    radius: "نطاق البحث",
+    radiusKm: "كم",
+    search: "ابحث بالقرب مني",
+    searching: "جاري البحث...",
+    permissionDenied:
+      "تم رفض إذن الموقع. فعّله في المتصفح للبحث عن أطباء قريبين.",
+    geolocationUnsupported: "المتصفح ده ميدعمش الموقع. استخدم إعدادات الموقع في جهازك.",
+    noResults: "مفيش عيادات أو أطباء في النطاق ده. جرب نطاق أكبر أو ابحث على فيسبوك.",
+    results: "النتايج",
+    distance: "المسافة",
+    address: "العنوان",
+    phone: "التليفون",
+    website: "الموقع الإلكتروني",
+    searchFacebook: "ابحث على فيسبوك",
+    openMap: "افتح في OpenStreetMap",
+    howItWorksTitle: "ازاي بيشتغل",
+    howItWorksBody:
+      "النتايج جاية من OpenStreetMap (overpass-api.de) مجانًا ومفتوح المصدر. مفيش بيع لموقعك أبدًا.",
+    errorGeneric: "حصل خطأ أثناء البحث.",
+    emptyTitle: "اعثر على رعاية قريبة",
+    emptyBody: "اضغط على استخدم موقعي للبحث عن أطباء وعيادات ومراكز طبية حولك.",
+  },
+};
+
 export const copy = { en, ar };
 export type Copy = typeof en;
+export type NearbyCopy = typeof nearby.en;
 
 export function getCopy(locale: Locale): Copy {
   return copy[locale];
+}
+
+export function getNearbyCopy(locale: Locale) {
+  return nearby[locale];
 }
 
 export function formatNumber(
