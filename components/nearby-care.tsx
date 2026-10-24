@@ -43,12 +43,15 @@ type Place = {
   website?: string;
   amenity?: string;
   typeLabel: string;
+  sameArea: boolean;
 };
 
 const OVERPASS_ENDPOINTS = [
   "https://overpass-api.de/api/interpreter",
   "https://overpass.kumi.systems/api/interpreter",
 ];
+
+const NOMINATIM_ENDPOINT = "https://nominatim.openstreetmap.org/search";
 
 function haversineKm(a: LatLng, b: LatLng): number {
   const R = 6371;
@@ -69,6 +72,9 @@ function buildAddress(tags: Record<string, string> = {}): string | undefined {
     tags["addr:housenumber"],
     tags["addr:street"],
     tags["addr:city"],
+    tags["addr:town"],
+    tags["addr:village"],
+    tags["addr:district"],
     tags["addr:postcode"],
   ].filter(Boolean);
 
@@ -79,31 +85,52 @@ function buildAddress(tags: Record<string, string> = {}): string | undefined {
   return tags["contact:address"] || tags["addr:full"] || undefined;
 }
 
+function getPlaceArea(tags: Record<string, string> = {}): string | undefined {
+  return (
+    tags["addr:city"] ||
+    tags["addr:town"] ||
+    tags["addr:village"] ||
+    tags["addr:district"] ||
+    tags["addr:hamlet"] ||
+    tags["is_in:city"] ||
+    tags["is_in:town"] ||
+    undefined
+  );
+}
+
 function getTypeLabel(tags: Record<string, string> = {}, locale: string): string {
   if (tags.amenity === "doctors") return locale === "ar" ? "طبيب" : "Doctor";
   if (tags.amenity === "clinic") return locale === "ar" ? "عيادة" : "Clinic";
   if (tags.amenity === "hospital") return locale === "ar" ? "مستشفى" : "Hospital";
   if (tags.amenity === "pharmacy") return locale === "ar" ? "صيدلية" : "Pharmacy";
-  if (tags.healthcare === "doctor")
-    return locale === "ar" ? "طبيب" : "Doctor";
-  if (tags.healthcare === "clinic")
-    return locale === "ar" ? "عيادة" : "Clinic";
+  if (tags.healthcare === "doctor") return locale === "ar" ? "طبيب" : "Doctor";
+  if (tags.healthcare === "clinic") return locale === "ar" ? "عيادة" : "Clinic";
   if (tags.healthcare === "centre" || tags.healthcare === "center")
     return locale === "ar" ? "مركز طبي" : "Medical center";
-  if (tags.healthcare === "hospital")
-    return locale === "ar" ? "مستشفى" : "Hospital";
+  if (tags.healthcare === "hospital") return locale === "ar" ? "مستشفى" : "Hospital";
   return locale === "ar" ? "رعاية صحية" : "Healthcare";
+}
+
+function normalizeArea(value?: string): string {
+  if (!value) return "";
+  return value
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\u0621-\u064a\u0660-\u0669\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function buildOverpassQuery(lat: number, lon: number, radiusM: number): string {
   return `[out:json][timeout:25];
 (
-  node["amenity"~"doctors|clinic|hospital|pharmacy"](around:${radiusM},${lat},${lon});
-  way["amenity"~"doctors|clinic|hospital|pharmacy"](around:${radiusM},${lat},${lon});
-  relation["amenity"~"doctors|clinic|hospital|pharmacy"](around:${radiusM},${lat},${lon});
-  node["healthcare"~"doctor|clinic|centre|center|hospital"](around:${radiusM},${lat},${lon});
-  way["healthcare"~"doctor|clinic|centre|center|hospital"](around:${radiusM},${lat},${lon});
-  relation["healthcare"~"doctor|clinic|centre|center|hospital"](around:${radiusM},${lat},${lon});
+  node["amenity"~"doctors|clinic|hospital|dentist|pharmacy"](around:${radiusM},${lat},${lon});
+  way["amenity"~"doctors|clinic|hospital|dentist|pharmacy"](around:${radiusM},${lat},${lon});
+  relation["amenity"~"doctors|clinic|hospital|dentist|pharmacy"](around:${radiusM},${lat},${lon});
+  node["healthcare"~"doctor|clinic|centre|center|hospital|dentist"](around:${radiusM},${lat},${lon});
+  way["healthcare"~"doctor|clinic|centre|center|hospital|dentist"](around:${radiusM},${lat},${lon});
+  relation["healthcare"~"doctor|clinic|centre|center|hospital|dentist"](around:${radiusM},${lat},${lon});
 );
 out center tags;`;
 }
@@ -111,10 +138,12 @@ out center tags;`;
 export function NearbyCare() {
   const { locale, t, tn } = useLocale();
   const [position, setPosition] = useState<LatLng | null>(null);
+  const [areaName, setAreaName] = useState<string>("");
+  const [placeQuery, setPlaceQuery] = useState<string>("");
   const [radiusKm, setRadiusKm] = useState(5);
   const [places, setPlaces] = useState<Place[]>([]);
   const [status, setStatus] = useState<
-    "idle" | "locating" | "searching" | "error"
+    "idle" | "locating" | "searching" | "searchingPlace" | "error"
   >("idle");
   const [error, setError] = useState<string | null>(null);
 
@@ -132,11 +161,13 @@ export function NearbyCare() {
 
     navigator.geolocation.getCurrentPosition(
       (coords) => {
-        setPosition({
+        const pos = {
           lat: coords.coords.latitude,
           lon: coords.coords.longitude,
-        });
+        };
+        setPosition(pos);
         setStatus("idle");
+        setError(null);
       },
       (err) => {
         if (err.code === 1) {
@@ -153,6 +184,74 @@ export function NearbyCare() {
       },
     );
   }, [canLocate, tn]);
+
+  const searchByPlace = useCallback(
+    async (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      const query = placeQuery.trim();
+
+      if (!query) return;
+
+      setStatus("searchingPlace");
+      setError(null);
+      setPlaces([]);
+
+      try {
+        const url = new URL(NOMINATIM_ENDPOINT);
+        url.searchParams.set("format", "json");
+        url.searchParams.set("q", query);
+        url.searchParams.set("limit", "1");
+        url.searchParams.set("addressdetails", "1");
+        url.searchParams.set("accept-language", locale === "ar" ? "ar" : "en");
+
+        const response = await fetch(url.toString(), {
+          headers: {
+            "User-Agent": "Healthier/1.0 (https://modimori.github.io/healthier/)",
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error(`nominatim_${response.status}`);
+        }
+
+        const results = (await response.json()) as Array<{
+          lat: string;
+          lon: string;
+          display_name: string;
+          address?: Record<string, string>;
+        }>;
+
+        if (!results.length) {
+          setError(tn.noResults);
+          setStatus("error");
+          return;
+        }
+
+        const first = results[0];
+        const pos = {
+          lat: Number(first.lat),
+          lon: Number(first.lon),
+        };
+        const area =
+          first.address?.city ||
+          first.address?.town ||
+          first.address?.village ||
+          first.address?.municipality ||
+          first.address?.county ||
+          first.display_name;
+
+        setPosition(pos);
+        setAreaName(area || query);
+        setStatus("idle");
+        setError(null);
+      } catch (searchError) {
+        console.error("Place search failed:", searchError);
+        setError(tn.errorGeneric);
+        setStatus("error");
+      }
+    },
+    [locale, placeQuery, tn],
+  );
 
   const searchNearby = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
@@ -194,6 +293,8 @@ export function NearbyCare() {
           const elements = data.elements || [];
           const results: Place[] = [];
 
+          const targetArea = normalizeArea(areaName);
+
           for (const element of elements) {
             const tags = element.tags || {};
             const name = tags.name || tags["name:en"] || tags.operator;
@@ -211,6 +312,11 @@ export function NearbyCare() {
             const website = tags.website || tags["contact:website"] || tags.url;
             const amenity = tags.amenity || tags.healthcare;
             const typeLabel = getTypeLabel(tags, locale);
+            const placeArea = getPlaceArea(tags);
+            const sameArea = targetArea
+              ? normalizeArea(placeArea).includes(targetArea) ||
+                targetArea.includes(normalizeArea(placeArea))
+              : true;
 
             results.push({
               id: `${element.type}/${element.id}`,
@@ -223,10 +329,15 @@ export function NearbyCare() {
               website,
               amenity,
               typeLabel,
+              sameArea,
             });
           }
 
-          results.sort((a, b) => a.distanceKm - b.distanceKm);
+          results.sort((a, b) => {
+            if (a.sameArea !== b.sameArea) return a.sameArea ? -1 : 1;
+            return a.distanceKm - b.distanceKm;
+          });
+
           const deduped = results
             .filter(
               (place, index, array) =>
@@ -253,7 +364,7 @@ export function NearbyCare() {
       setError(tn.errorGeneric);
       setStatus("error");
     },
-    [locale, position, radiusKm, requestLocation, tn],
+    [areaName, locale, position, radiusKm, requestLocation, tn],
   );
 
   const facebookSearchUrl = useMemo(() => {
@@ -261,6 +372,9 @@ export function NearbyCare() {
     const query = encodeURIComponent(places[0].name);
     return `https://www.facebook.com/search/top/?q=${query}`;
   }, [places]);
+
+  const isBusy =
+    status === "locating" || status === "searching" || status === "searchingPlace";
 
   return (
     <div className="page nearby-page">
@@ -283,7 +397,7 @@ export function NearbyCare() {
                 type="button"
                 className="button button--dark button--small"
                 onClick={requestLocation}
-                disabled={status === "locating"}
+                disabled={isBusy}
               >
                 {status === "locating" ? (
                   <LoaderCircle size={15} strokeWidth={2} className="spin" />
@@ -295,9 +409,36 @@ export function NearbyCare() {
               {position && (
                 <span className="nearby-coords">
                   <MapPin size={14} strokeWidth={1.8} />
-                  {position.lat.toFixed(4)}, {position.lon.toFixed(4)}
+                  {areaName ? areaName : `${position.lat.toFixed(4)}, ${position.lon.toFixed(4)}`}
                 </span>
               )}
+            </div>
+
+            <div className="nearby-place-row">
+              <form className="nearby-place-form" onSubmit={searchByPlace}>
+                <div className="nearby-place-input">
+                  <Search size={15} strokeWidth={1.8} />
+                  <input
+                    value={placeQuery}
+                    onChange={(event) => setPlaceQuery(event.target.value)}
+                    placeholder={tn.placePlaceholder}
+                    aria-label={tn.searchByPlace}
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="button button--light button--small"
+                  disabled={!placeQuery.trim() || isBusy}
+                >
+                  {status === "searchingPlace" ? (
+                    <LoaderCircle size={15} strokeWidth={2} className="spin" />
+                  ) : (
+                    <Search size={15} strokeWidth={1.8} />
+                  )}
+                  {status === "searchingPlace" ? tn.searchingPlace : tn.searchPlace}
+                </button>
+              </form>
+              <span className="nearby-place-hint">{tn.searchByPlace}</span>
             </div>
 
             <div className="nearby-control-row nearby-control-row--split">
@@ -307,17 +448,17 @@ export function NearbyCare() {
                   value={radiusKm}
                   onChange={(event) => setRadiusKm(Number(event.target.value))}
                 >
-                  <option value={2}>2 {tn.radiusKm}</option>
                   <option value={3}>3 {tn.radiusKm}</option>
                   <option value={5}>5 {tn.radiusKm}</option>
+                  <option value={7}>7 {tn.radiusKm}</option>
                   <option value={10}>10 {tn.radiusKm}</option>
                   <option value={15}>15 {tn.radiusKm}</option>
                 </select>
               </label>
               <button
                 type="submit"
-                className="button button--light button--small"
-                disabled={!position || status === "searching"}
+                className="button button--dark button--small"
+                disabled={!position || isBusy}
               >
                 {status === "searching" ? (
                   <LoaderCircle size={15} strokeWidth={2} className="spin" />
@@ -373,6 +514,11 @@ export function NearbyCare() {
                         <div>
                           <div className="nearby-card-badges">
                             <span className="nearby-badge">{place.typeLabel}</span>
+                            {place.sameArea && areaName && (
+                              <span className="nearby-badge nearby-badge--muted">
+                                {locale === "ar" ? "نفس المنطقة" : "Same area"}
+                              </span>
+                            )}
                             <span className="nearby-badge nearby-badge--muted">
                               {place.distanceKm} {tn.radiusKm}
                             </span>
@@ -422,8 +568,8 @@ export function NearbyCare() {
                           target="_blank"
                           rel="noopener noreferrer"
                         >
-                        <span aria-hidden="true">f</span>
-                        {tn.searchFacebook}
+                          <span aria-hidden="true">f</span>
+                          {tn.searchFacebook}
                         </a>
                       </div>
                     </article>

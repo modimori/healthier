@@ -3561,3 +3561,5 @@ input[type="number"] {
     transition-duration: 0.01ms !important;
   }
 }
+
+.nearby-place-row{display:flex;flex-direction:column;gap:6px}.nearby-place-form{display:flex;flex-wrap:wrap;gap:10px;align-items:center}.nearby-place-input{display:flex;flex:1 1 220px;gap:8px;align-items:center;padding:9px 12px;background:var(--surface);border:1px solid var(--line-strong);border-radius:12px}.nearby-place-input input{flex:1;border:0;background:transparent;color:var(--ink)}.nearby-place-input input:focus{outline:none}.nearby-place-hint{color:var(--muted);font-size:11px}
